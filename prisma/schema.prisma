@@ -1,0 +1,50 @@
+// prisma/schema.prisma
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Resource {
+  id        String    @id @default(cuid())
+  name      String
+  bookings  Booking[]
+  openSlots OpenSlot[]
+}
+
+model OpenSlot {
+  id         String   @id @default(cuid())
+  resourceId String
+  start      DateTime
+  end        DateTime
+
+  resource   Resource @relation(fields: [resourceId], references: [id])
+
+  @@unique([resourceId, start], map: "openSlot_resource_start_unique")
+  @@index([resourceId, start], map: "openSlot_resource_start_idx")
+}
+
+model Booking {
+  id          String   @id @default(cuid())
+  resourceId  String
+  start       DateTime
+  end         DateTime
+  name        String
+  email       String
+  phone       String
+  address     String   @default("")
+  createdAt   DateTime @default(now())
+  status      String   @default("booked")   // nytt
+  cancelToken String?  @unique              // nytt
+  cancelTokenExpires DateTime?              // nytt
+
+  resource   Resource @relation(fields: [resourceId], references: [id])
+
+  @@unique([resourceId, start])
+}
+
+
