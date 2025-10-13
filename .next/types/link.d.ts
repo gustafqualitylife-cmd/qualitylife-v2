@@ -33,9 +33,9 @@ declare namespace __next_route_internal_types__ {
     | `/about`
     | `/admin/schema`
     | `/api/contact`
+    | `/api/contact/book`
     | `/api/contact/admin/open/toggle`
     | `/api/contact/open/week`
-    | `/api/contact/book`
     | `/blog`
     | `/book`
     | `/contact`
@@ -46,7 +46,6 @@ declare namespace __next_route_internal_types__ {
     | `/services`
   type DynamicRoutes<T extends string = string> = 
     | `/blog/${SafeSlug<T>}`
-    | `/cancel/${SafeSlug<T>}`
 
   type RouteImpl<T> = 
     | StaticRoutes
