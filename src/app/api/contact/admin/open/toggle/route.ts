@@ -10,17 +10,25 @@ function parseHM(hm: string) {
   const [h, mi] = hm.split(":").map(Number);
   return { h: h ?? 0, mi: mi ?? 0 };
 }
+
+// ✅ Fixad version: konverterar lokal tid till UTC innan sparning
 function startFromDateTime(date?: string, time?: string, startIso?: string) {
   if (startIso) {
     const s = new Date(startIso);
     s.setSeconds(0, 0);
     return s;
   }
+
   if (!date || !time) throw new Error("Missing date/time");
+
+  // Skapa lokal tid från datum + klockslag
   const base = parseYMD(date);
   const { h, mi } = parseHM(time);
-  base.setHours(h, mi, 0, 0); // lokal → DB lagrar i UTC
-  return base;
+  base.setHours(h, mi, 0, 0);
+
+  // 🔧 Justera till UTC innan vi sparar
+  const utc = new Date(base.getTime() - base.getTimezoneOffset() * 60000);
+  return utc;
 }
 
 type Body =
@@ -32,6 +40,7 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as Body;
     const resourceId = (body as any).resourceId;
     const desired = (body as any).desired as "open" | "closed" | undefined;
+
     if (!resourceId) {
       return NextResponse.json({ ok: false, error: "Missing resourceId" }, { status: 400 });
     }
@@ -51,7 +60,7 @@ export async function POST(req: NextRequest) {
     );
     const end = new Date(start.getTime() + 30 * 60 * 1000);
 
-    // Finns slotten?
+    // Finns slotten redan?
     const existing = await prisma.openSlot.findUnique({
       where: { resourceId_start: { resourceId, start } }, // kräver @@unique([resourceId, start])
     });
@@ -85,6 +94,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, toggled: "added", start: start.toISOString() });
     }
   } catch (err: any) {
+    console.error("ADMIN SCHEMA ERROR", err);
     return NextResponse.json({ ok: false, error: err?.message ?? "Server error" }, { status: 500 });
   }
 }
