@@ -48,6 +48,15 @@ export default function AdminSchema() {
   }
   useEffect(() => { load(); }, [weekAnchor]);
 
+  async function fetchWeekDays(anchor: string){
+    const r = await fetch(
+      `/api/contact/open/week?resourceId=${RESOURCE_ID}&week=${anchor}`,
+      { cache: "no-store" }
+    );
+    const data = await r.json();
+    return (data?.days ?? {}) as Record<string, { iso: string; label: string }[]>;
+  }
+
   function shiftWeek(delta:number){
     const d = parseYMD(weekAnchor);     // PARSA lokalt, inte new Date("YYYY-MM-DD")
     d.setDate(d.getDate() + delta*7);
@@ -94,9 +103,10 @@ export default function AdminSchema() {
     setPending(p => ({ ...p, [key]: true }));
 
     try {
-      // Compute startIso from browser local time (admin is in local tz)
-      const local = new Date(`${date}T${time}:00`);
-      const startIso = new Date(local.getTime() - local.getTimezoneOffset() * 60000).toISOString();
+  // Compute startIso from browser local time (admin is in local tz)
+  // Important: new Date("YYYY-MM-DDTHH:mm:SS") is parsed as LOCAL time in JS.
+  // Calling toISOString() converts that exact wall time to the correct UTC instant.
+  const startIso = new Date(`${date}T${time}:00`).toISOString();
 
       const res = await fetch("/api/contact/admin/open/toggle", {
         method:"POST",
@@ -113,8 +123,17 @@ export default function AdminSchema() {
       if (!res.ok || !json?.ok) throw new Error(json?.error || `HTTP ${res.status}`);
 
       // Liten delay för att undvika replikerings-race i moln
-      await new Promise(r => setTimeout(r, 60));
-      await load();
+      await new Promise(r => setTimeout(r, 120));
+      // Verifiera förändringen; om inte synlig direkt, prova en gång till
+      const expectedOpen = makeOpen;
+      let latest = await fetchWeekDays(weekAnchor);
+      const curSet = new Set((latest[date] ?? []).map(s => s.label));
+      const okNow = expectedOpen === curSet.has(time);
+      if (!okNow) {
+        await new Promise(r => setTimeout(r, 200));
+        latest = await fetchWeekDays(weekAnchor);
+      }
+      setDays(latest);
     } catch (err:any) {
       // Rollback: ladda om serverstatus om API faller
       console.error("Toggle failed", err);
