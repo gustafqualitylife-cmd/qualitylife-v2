@@ -33,13 +33,13 @@ declare namespace __next_route_internal_types__ {
     | `/about`
     | `/admin/schema`
     | `/api/contact`
-    | `/api/contact/book`
     | `/api/contact/admin/open/toggle`
+    | `/api/contact/book`
     | `/api/contact/open/week`
     | `/blog`
     | `/book`
-    | `/contact`
     | `/faq`
+    | `/contact`
     | `/gallery`
     | `/pricing`
     | `/process`

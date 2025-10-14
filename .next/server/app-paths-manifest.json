@@ -1,1 +1,3 @@
-{}
+{
+  "/admin/schema/page": "app/admin/schema/page.js"
+}

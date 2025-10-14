@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 
 // Samma TIMES som i UI så vi kan mappa rätt labels
 const TIMES = [
-  "10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00"
+  "10:00","11:00","12:00","13:00","14:00","15:00",
+  "16:00","17:00","18:00","19:00"
 ];
 
 function pad2(n: number) {
@@ -31,7 +32,10 @@ export async function GET(req: NextRequest) {
   const weekAnchor = searchParams.get("week") ?? "";
 
   if (!resourceId || !weekAnchor) {
-    return NextResponse.json({ ok: false, error: "Missing params" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: "Missing params" },
+      { status: 400 }
+    );
   }
 
   const anchor = parseYMD(weekAnchor);
@@ -45,23 +49,25 @@ export async function GET(req: NextRequest) {
     orderBy: { start: "asc" },
   });
 
-  // Grupp: ymdLocal → [{iso,label}]
+  // Grupp: ymdLocal → [{ iso, label }]
   const days: Record<string, { iso: string; label: string }[]> = {};
+
   for (const s of slots) {
-    // 🔧 Använd svensk tidszon vid konvertering
-    const local = new Date(s.start);
-    const key = ymdLocal(
-      new Date(local.toLocaleString("en-US", { timeZone: "Europe/Stockholm" }))
+    // ✅ Konvertera DB-tid (UTC) till svensk tid
+    const stockholmTime = new Date(
+      new Date(s.start).toLocaleString("en-US", { timeZone: "Europe/Stockholm" })
     );
 
-    // 🔧 Skapa etikett med svensk tid
-    const label = new Date(s.start).toLocaleTimeString("sv-SE", {
-      timeZone: "Europe/Stockholm",
+    const key = ymdLocal(stockholmTime);
+
+    const label = stockholmTime.toLocaleTimeString("sv-SE", {
       hour: "2-digit",
       minute: "2-digit",
     });
 
+    // Hoppa över tider som inte finns i schemat
     if (!TIMES.includes(label)) continue;
+
     if (!days[key]) days[key] = [];
     days[key].push({ iso: s.start.toISOString(), label });
   }
