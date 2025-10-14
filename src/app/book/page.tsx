@@ -284,6 +284,23 @@ export default function BookPage() {
                 </DayCard>
               ))}
             </div>
+
+            {selectedIso && (
+              <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl max-w-xl">
+                <div className="text-sm font-medium text-emerald-900 mb-1">Du har valt:</div>
+                <div className="text-lg font-semibold text-emerald-900">
+                  {new Date(selectedIso).toLocaleString("sv-SE", {
+                    weekday: "long",
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </div>
+                <p className="text-xs text-emerald-700 mt-1">Fyll i dina uppgifter nedan för att slutföra bokningen.</p>
+              </div>
+            )}
           </>
         )}
       </section>
