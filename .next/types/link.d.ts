@@ -32,14 +32,14 @@ declare namespace __next_route_internal_types__ {
     | `/`
     | `/about`
     | `/admin/schema`
+    | `/blog`
     | `/api/contact`
     | `/api/contact/admin/open/toggle`
     | `/api/contact/book`
     | `/api/contact/open/week`
-    | `/blog`
     | `/book`
-    | `/faq`
     | `/contact`
+    | `/faq`
     | `/gallery`
     | `/pricing`
     | `/process`
