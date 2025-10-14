@@ -15,8 +15,9 @@ function parseHM(hm: string) {
 }
 
 function startFromDateTime(date?: string, time?: string, startIso?: string) {
+  const TZ = "Europe/Stockholm";
   if (startIso) {
-    // Tolka startIso som UTC, men nollställ sekunder/ms
+    // Tolka startIso som UTC och nollställ sekunder/ms
     const d = new Date(startIso);
     return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), 0, 0));
   }
@@ -24,8 +25,17 @@ function startFromDateTime(date?: string, time?: string, startIso?: string) {
 
   const base = parseYMD(date);
   const { h, mi } = parseHM(time);
-  // Skapa UTC-tid från lokal tid, nollställ sekunder/ms
-  return new Date(Date.UTC(base.getFullYear(), base.getMonth(), base.getDate(), h, mi, 0, 0));
+
+  // Bygg en "naiv" UTC-tid med samma väggklocka (YYYY-MM-DD HH:mm)
+  const guessUtc = new Date(Date.UTC(base.getFullYear(), base.getMonth(), base.getDate(), h, mi, 0, 0));
+  // Beräkna offset för Stockholm vid detta ögonblick
+  const tzDate = new Date(guessUtc.toLocaleString("en-US", { timeZone: TZ }));
+  const offsetMin = (tzDate.getTime() - guessUtc.getTime()) / 60000; // positivt i sommar/vintertid
+  // Korrigera: lokal Stockholm-tid -> faktisk UTC
+  const utc = new Date(guessUtc.getTime() - offsetMin * 60000);
+  // Nollställ sekunder/ms
+  utc.setSeconds(0, 0);
+  return utc;
 }
 
 type Body =

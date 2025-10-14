@@ -94,6 +94,10 @@ export default function AdminSchema() {
     setPending(p => ({ ...p, [key]: true }));
 
     try {
+      // Compute startIso from browser local time (admin is in local tz)
+      const local = new Date(`${date}T${time}:00`);
+      const startIso = new Date(local.getTime() - local.getTimezoneOffset() * 60000).toISOString();
+
       const res = await fetch("/api/contact/admin/open/toggle", {
         method:"POST",
         headers:{ "Content-Type":"application/json" },
@@ -101,6 +105,7 @@ export default function AdminSchema() {
           resourceId: RESOURCE_ID,
           date,       // YYYY-MM-DD (lokal)
           time,       // "HH:mm"
+          startIso,   // exact UTC instant from browser local time
           desired: makeOpen ? "open" : "closed"
         })
       });
