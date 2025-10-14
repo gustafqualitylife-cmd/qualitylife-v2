@@ -28,6 +28,7 @@ export default function AdminSchema() {
   // Initiera med dagens datum i LOKALT YMD-format
   const [weekAnchor, setWeekAnchor] = useState(() => ymdLocal(new Date()));
   const [days, setDays] = useState<Record<string, { iso: string; label: string }[]>>({});
+  const [pending, setPending] = useState<Record<string, boolean>>({}); // key: `${date}|${time}`
 
   const weekTitle = useMemo(() => {
     const a = parseYMD(weekAnchor);
@@ -66,18 +67,58 @@ export default function AdminSchema() {
     });
   }, [weekAnchor, days]);
 
+  function slotKey(date:string, time:string){ return `${date}|${time}`; }
+
   async function toggle(date:string, time:string, makeOpen:boolean) {
-    await fetch("/api/contact/admin/open/toggle", {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({
-        resourceId: RESOURCE_ID,
-        date,       // YYYY-MM-DD (lokal)
-        time,       // "HH:mm"
-        desired: makeOpen ? "open" : "closed"
-      })
+    const key = slotKey(date, time);
+
+    // Optimistisk uppdatering: uppdatera UI direkt
+    setDays(prev => {
+      const next = { ...prev };
+      const arr = next[date] ? [...next[date]] : [];
+      const has = arr.some(s => s.label === time);
+      if (makeOpen) {
+        if (!has) arr.push({ iso: "", label: time });
+      } else {
+        if (has) {
+          const filtered = arr.filter(s => s.label !== time);
+          next[date] = filtered;
+          return next;
+        }
+      }
+      next[date] = arr;
+      return next;
     });
-    await load(); // refetch efter ändring
+
+    // Markera pending och disable knappen
+    setPending(p => ({ ...p, [key]: true }));
+
+    try {
+      const res = await fetch("/api/contact/admin/open/toggle", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({
+          resourceId: RESOURCE_ID,
+          date,       // YYYY-MM-DD (lokal)
+          time,       // "HH:mm"
+          desired: makeOpen ? "open" : "closed"
+        })
+      });
+      const json = await res.json().catch(() => ({} as any));
+      if (!res.ok || !json?.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+
+      // Liten delay för att undvika replikerings-race i moln
+      await new Promise(r => setTimeout(r, 60));
+      await load();
+    } catch (err:any) {
+      // Rollback: ladda om serverstatus om API faller
+      console.error("Toggle failed", err);
+      await load();
+    } finally {
+      setPending(p => {
+        const n = { ...p }; delete n[key]; return n;
+      });
+    }
   }
 
   return (
@@ -97,11 +138,13 @@ export default function AdminSchema() {
             <div className="flex flex-col gap-2">
               {TIMES.map(t=>{
                 const isOpen = openSet.has(t);
+                const isPending = pending[slotKey(key, t)] === true;
                 return (
                   <button key={t}
-                          onClick={()=>toggle(key, t, !isOpen)}
-                          className={`rounded-xl px-3 py-2 border ${isOpen ? "bg-emerald-50 border-emerald-300" : "bg-gray-50 border-gray-300"}`}>
-                    {t} {isOpen ? "• öppen" : "• stängd"}
+                          onClick={()=>!isPending && toggle(key, t, !isOpen)}
+                          disabled={isPending}
+                          className={`rounded-xl px-3 py-2 border ${isOpen ? "bg-emerald-50 border-emerald-300" : "bg-gray-50 border-gray-300"} ${isPending ? "opacity-60 cursor-not-allowed" : ""}`}>
+                    {t} {isOpen ? "• öppen" : "• stängd"}{isPending ? " (sparar…)" : ""}
                   </button>
                 );
               })}

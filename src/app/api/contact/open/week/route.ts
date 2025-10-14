@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// Ensure no caching on Vercel and always compute dynamically
+export const dynamic = "force-dynamic";
+
 const TIMES = [
   "10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00"
 ];
@@ -45,18 +48,24 @@ export async function GET(req: NextRequest) {
 
   const days: Record<string, { iso: string; label: string }[]> = {};
 
+  const tz = "Europe/Stockholm";
+  const timeFmt = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: tz,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const ymdFmt = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
   for (const s of slots) {
-    // ✅ Konvertera UTC -> svensk tid korrekt
-    const stockholmTime = new Date(
-      new Date(s.start).toLocaleString("en-US", { timeZone: "Europe/Stockholm" })
-    );
-
-    const key = ymdLocal(stockholmTime);
-    const label = stockholmTime.toLocaleTimeString("sv-SE", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
+    const d = new Date(s.start);
+    const key = ymdFmt.format(d); // YYYY-MM-DD in Stockholm tz
+    const label = timeFmt.format(d); // HH:mm in Stockholm tz
     if (!TIMES.includes(label)) continue;
     if (!days[key]) days[key] = [];
     days[key].push({ iso: s.start.toISOString(), label });

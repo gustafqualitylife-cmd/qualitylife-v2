@@ -38,8 +38,8 @@ declare namespace __next_route_internal_types__ {
     | `/api/contact/open/week`
     | `/blog`
     | `/book`
-    | `/faq`
     | `/contact`
+    | `/faq`
     | `/gallery`
     | `/pricing`
     | `/process`

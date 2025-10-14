@@ -549,6 +549,9 @@ video {
 .pointer-events-none {
   pointer-events: none;
 }
+.static {
+  position: static;
+}
 .fixed {
   position: fixed;
 }
@@ -835,6 +838,9 @@ video {
 }
 .animate-spin {
   animation: spin 1s linear infinite;
+}
+.cursor-not-allowed {
+  cursor: not-allowed;
 }
 .resize-none {
   resize: none;

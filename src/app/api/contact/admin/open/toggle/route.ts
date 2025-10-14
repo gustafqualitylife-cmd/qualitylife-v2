@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// Always handle dynamically (no static caching)
+export const dynamic = "force-dynamic";
+
 // Hjälpare
 function parseYMD(ymd: string) {
   const [y, m, d] = ymd.split("-").map(Number);
@@ -12,16 +15,17 @@ function parseHM(hm: string) {
 }
 
 function startFromDateTime(date?: string, time?: string, startIso?: string) {
-  if (startIso) return new Date(startIso);
+  if (startIso) {
+    // Tolka startIso som UTC, men nollställ sekunder/ms
+    const d = new Date(startIso);
+    return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), 0, 0));
+  }
   if (!date || !time) throw new Error("Missing date/time");
 
   const base = parseYMD(date);
   const { h, mi } = parseHM(time);
-  base.setHours(h, mi, 0, 0);
-
-  // 🔧 Sparas i UTC så det funkar på Vercel
-  const utc = new Date(base.getTime() - base.getTimezoneOffset() * 60000);
-  return utc;
+  // Skapa UTC-tid från lokal tid, nollställ sekunder/ms
+  return new Date(Date.UTC(base.getFullYear(), base.getMonth(), base.getDate(), h, mi, 0, 0));
 }
 
 type Body =
@@ -47,17 +51,26 @@ export async function POST(req: NextRequest) {
     const start = startFromDateTime((body as any).date, (body as any).time, (body as any).startIso);
     const end = new Date(start.getTime() + 60 * 60 * 1000); // 1h
 
-    // 🔍 hitta exakt slot (UTC)
-    const existing = await prisma.openSlot.findUnique({
-      where: { resourceId_start: { resourceId, start } },
+    // Logga för felsökning
+    console.log("ADMIN TOGGLE", { resourceId, date: (body as any).date, time: (body as any).time, start: start.toISOString() });
+
+    // Hitta slot med exakt tid (nollställ sekunder/ms för säker jämförelse)
+    const slot = await prisma.openSlot.findFirst({
+      where: {
+        resourceId,
+        start: {
+          gte: new Date(start.getTime()),
+          lt: new Date(start.getTime() + 60 * 1000), // matcha exakt minut
+        },
+      },
     });
 
     if (desired === "open") {
-      if (!existing) await prisma.openSlot.create({ data: { resourceId, start, end } });
+      if (!slot) await prisma.openSlot.create({ data: { resourceId, start, end } });
     } else if (desired === "closed") {
-      if (existing) await prisma.openSlot.delete({ where: { id: existing.id } });
+      if (slot) await prisma.openSlot.delete({ where: { id: slot.id } });
     } else {
-      if (existing) await prisma.openSlot.delete({ where: { id: existing.id } });
+      if (slot) await prisma.openSlot.delete({ where: { id: slot.id } });
       else await prisma.openSlot.create({ data: { resourceId, start, end } });
     }
 
