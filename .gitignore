@@ -5,3 +5,6 @@ node_modules
 /generated/prisma
  
 .env.local
+
+# Next.js build artifacts
+.next
