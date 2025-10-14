@@ -160,7 +160,14 @@ export default function BookPage() {
       const res = await fetch("/api/contact/book", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resourceId: RESOURCE_ID, startIso: selectedIso, name, email, phone, address }),
+        body: JSON.stringify({
+  resourceId: RESOURCE_ID,
+  startIso: new Date(selectedIso).toISOString(), // 👈 konvertera till UTC innan du skickar
+  name,
+  email,
+  phone,
+  address,
+}),
       });
       const data = await res.json();
       if (!res.ok || !data?.ok) throw new Error(data?.error || "Kunde inte boka tiden.");

@@ -38,11 +38,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ✅ Konvertera till UTC innan vi sparar i databasen
-  const localStart = new Date(body.startIso);
-  const start = new Date(
-    localStart.getTime() - localStart.getTimezoneOffset() * 60000
-  );
+  // 🚫 Ingen timezone-justering – tiden skickas redan som UTC
+  const start = new Date(body.startIso);
   const end = new Date(+start + 60 * 60 * 1000);
 
   try {
@@ -78,7 +75,6 @@ export async function POST(req: NextRequest) {
       return created;
     });
 
-    // --- EFTER lyckad transaktion: skicka mejl ---
     const internalText = internalNotification({
       name: body.name,
       email: body.email,
@@ -87,7 +83,6 @@ export async function POST(req: NextRequest) {
       startIso: body.startIso,
     });
 
-    // ✅ Visa tiden i svensk tid i bekräftelsen
     const datetimeLocal = new Date(start).toLocaleString("sv-SE", {
       timeZone: "Europe/Stockholm",
       year: "numeric",
