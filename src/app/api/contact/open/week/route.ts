@@ -27,6 +27,18 @@ function startOfWeekLocal(d: Date) {
   return monday;
 }
 
+// Compute the UTC instant for a Stockholm-local midnight (YYYY-MM-DD 00:00 in Europe/Stockholm)
+function stockholmMidnightUtc(ymd: string) {
+  const tz = "Europe/Stockholm";
+  const [y, m, d] = ymd.split("-").map(Number);
+  const guessUtc = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1, 0, 0, 0, 0));
+  const tzDate = new Date(guessUtc.toLocaleString("en-US", { timeZone: tz }));
+  const offsetMin = (tzDate.getTime() - guessUtc.getTime()) / 60000;
+  const utc = new Date(guessUtc.getTime() - offsetMin * 60000);
+  utc.setSeconds(0, 0);
+  return utc;
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const resourceId = searchParams.get("resourceId") ?? "";
@@ -36,10 +48,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "Missing params" }, { status: 400 });
   }
 
-  const anchor = parseYMD(weekAnchor);
-  const weekStart = startOfWeekLocal(anchor);
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 7);
+  // Interpret incoming weekAnchor as Stockholm-local date and build UTC boundaries for the DB query
+  const anchorLocal = parseYMD(weekAnchor);
+  const weekStartLocal = startOfWeekLocal(anchorLocal);
+  const weekStartYmd = ymdLocal(weekStartLocal);
+  const weekEndLocal = new Date(weekStartLocal);
+  weekEndLocal.setDate(weekStartLocal.getDate() + 7);
+  const weekEndYmd = ymdLocal(weekEndLocal);
+  const weekStart = stockholmMidnightUtc(weekStartYmd);
+  const weekEnd = stockholmMidnightUtc(weekEndYmd);
 
   const slots = await prisma.openSlot.findMany({
     where: { resourceId, start: { gte: weekStart, lt: weekEnd } },
@@ -47,25 +64,12 @@ export async function GET(req: NextRequest) {
   });
 
   const days: Record<string, { iso: string; label: string }[]> = {};
-
   const tz = "Europe/Stockholm";
-  const timeFmt = new Intl.DateTimeFormat("sv-SE", {
-    timeZone: tz,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  const ymdFmt = new Intl.DateTimeFormat("sv-SE", {
-    timeZone: tz,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-
   for (const s of slots) {
-    const d = new Date(s.start);
-    const key = ymdFmt.format(d); // YYYY-MM-DD in Stockholm tz
-    const label = timeFmt.format(d); // HH:mm in Stockholm tz
+    // Transform the UTC instant into a Date that reflects Stockholm-local wall time
+    const stockholm = new Date(new Date(s.start).toLocaleString("en-US", { timeZone: tz }));
+    const key = ymdLocal(stockholm);
+    const label = stockholm.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
     if (!TIMES.includes(label)) continue;
     if (!days[key]) days[key] = [];
     days[key].push({ iso: s.start.toISOString(), label });

@@ -74,17 +74,20 @@ export async function POST(req: NextRequest) {
         },
       },
     });
+    let created = false;
+    let deleted = false;
 
     if (desired === "open") {
-      if (!slot) await prisma.openSlot.create({ data: { resourceId, start, end } });
+      if (!slot) { await prisma.openSlot.create({ data: { resourceId, start, end } }); created = true; }
     } else if (desired === "closed") {
-      if (slot) await prisma.openSlot.delete({ where: { id: slot.id } });
+      if (slot) { await prisma.openSlot.delete({ where: { id: slot.id } }); deleted = true; }
     } else {
-      if (slot) await prisma.openSlot.delete({ where: { id: slot.id } });
-      else await prisma.openSlot.create({ data: { resourceId, start, end } });
+      if (slot) { await prisma.openSlot.delete({ where: { id: slot.id } }); deleted = true; }
+      else { await prisma.openSlot.create({ data: { resourceId, start, end } }); created = true; }
     }
 
-    return NextResponse.json({ ok: true });
+    console.log("ADMIN RESULT", { desired, created, deleted, start: start.toISOString() });
+    return NextResponse.json({ ok: true, desired, created, deleted, start: start.toISOString() });
   } catch (err: any) {
     console.error("ADMIN SCHEMA ERROR", err);
     return NextResponse.json({ ok: false, error: err?.message ?? "Server error" }, { status: 500 });
