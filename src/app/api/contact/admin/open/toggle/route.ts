@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 // Hjälpare
 function parseYMD(ymd: string) {
   const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(y, (m ?? 1) - 1, d ?? 1, 0, 0, 0, 0); // lokal tid
+  return new Date(y, (m ?? 1) - 1, d ?? 1, 0, 0, 0, 0);
 }
 function parseHM(hm: string) {
   const [h, mi] = hm.split(":").map(Number);
@@ -21,12 +21,11 @@ function startFromDateTime(date?: string, time?: string, startIso?: string) {
 
   if (!date || !time) throw new Error("Missing date/time");
 
-  // Skapa lokal tid från datum + klockslag (admin klickar lokalt)
   const base = parseYMD(date);
   const { h, mi } = parseHM(time);
   base.setHours(h, mi, 0, 0);
 
-  // 🔧 Justera till UTC innan vi sparar (för att DB alltid ska ha rätt)
+  // Justera till UTC innan vi sparar
   const utc = new Date(base.getTime() - base.getTimezoneOffset() * 60000);
   return utc;
 }
@@ -45,14 +44,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "Missing resourceId" }, { status: 400 });
     }
 
-    // Säkerställ att Resource finns (hindrar FK-fel)
+    // Säkerställ att Resource finns
     await prisma.resource.upsert({
       where: { id: resourceId },
       create: { id: resourceId, name: "Default" },
       update: {},
     });
 
-    // Beräkna start & end (30 min)
+    // Beräkna start och end (30 min)
     const start = startFromDateTime(
       (body as any).date,
       (body as any).time,
@@ -60,14 +59,20 @@ export async function POST(req: NextRequest) {
     );
     const end = new Date(start.getTime() + 30 * 60 * 1000);
 
-    // Finns slotten redan?
-    const existing = await prisma.openSlot.findUnique({
-      where: { resourceId_start: { resourceId, start } }, // kräver @@unique([resourceId, start])
+    // 🧩 Hitta existerande slot inom ±1 minut
+    const existing = await prisma.openSlot.findFirst({
+      where: {
+        resourceId,
+        start: {
+          gte: new Date(start.getTime() - 60 * 1000),
+          lte: new Date(start.getTime() + 60 * 1000),
+        },
+      },
     });
 
     let toggled: "added" | "removed" | "kept" | "kept-closed" = "kept";
 
-    // Styrd åtgärd om desired finns
+    // Styrd åtgärd
     if (desired === "open") {
       if (!existing) {
         await prisma.openSlot.create({ data: { resourceId, start, end } });
@@ -81,7 +86,6 @@ export async function POST(req: NextRequest) {
         toggled = "kept-closed";
       }
     } else {
-      // Fallback: toggle
       if (existing) {
         await prisma.openSlot.delete({ where: { id: existing.id } });
         toggled = "removed";
@@ -91,7 +95,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ✅ Skicka tillbaka både UTC och svensk tid till admin-UI
+    // ✅ Skicka tillbaka både UTC och svensk tid
     const startLocal = new Date(start).toLocaleString("sv-SE", {
       timeZone: "Europe/Stockholm",
       year: "numeric",
