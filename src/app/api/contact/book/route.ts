@@ -24,11 +24,25 @@ const INTERNAL_RECIPIENTS = [
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as Body;
 
-  if (!body?.resourceId || !body?.startIso || !body?.name || !body?.email || !body?.phone || !body?.address) {
-    return NextResponse.json({ ok: false, error: "Missing fields" }, { status: 400 });
+  if (
+    !body?.resourceId ||
+    !body?.startIso ||
+    !body?.name ||
+    !body?.email ||
+    !body?.phone ||
+    !body?.address
+  ) {
+    return NextResponse.json(
+      { ok: false, error: "Missing fields" },
+      { status: 400 }
+    );
   }
 
-  const start = new Date(body.startIso);
+  // ✅ Konvertera till UTC innan vi sparar i databasen
+  const localStart = new Date(body.startIso);
+  const start = new Date(
+    localStart.getTime() - localStart.getTimezoneOffset() * 60000
+  );
   const end = new Date(+start + 60 * 60 * 1000);
 
   try {
@@ -49,7 +63,15 @@ export async function POST(req: NextRequest) {
           phone: body.phone,
           address: body.address,
         },
-        select: { id: true, start: true, resourceId: true, name: true, email: true, phone: true, address: true },
+        select: {
+          id: true,
+          start: true,
+          resourceId: true,
+          name: true,
+          email: true,
+          phone: true,
+          address: true,
+        },
       });
 
       await tx.openSlot.delete({ where: { id: open.id } });
@@ -57,7 +79,6 @@ export async function POST(req: NextRequest) {
     });
 
     // --- EFTER lyckad transaktion: skicka mejl ---
-    // 1) Intern notis (textmallen din kräver html i sendMail – wrappa i <pre>)
     const internalText = internalNotification({
       name: body.name,
       email: body.email,
@@ -66,8 +87,8 @@ export async function POST(req: NextRequest) {
       startIso: body.startIso,
     });
 
-    // 2) Kundbekräftelse (HTML)
-    const datetimeLocal = new Date(body.startIso).toLocaleString("sv-SE", {
+    // ✅ Visa tiden i svensk tid i bekräftelsen
+    const datetimeLocal = new Date(start).toLocaleString("sv-SE", {
       timeZone: "Europe/Stockholm",
       year: "numeric",
       month: "2-digit",
@@ -76,14 +97,12 @@ export async function POST(req: NextRequest) {
       minute: "2-digit",
     });
 
-    // Bygg en enkel cancelUrl – byt till din riktiga avbokningssida/token-logik
     const baseUrl =
       process.env.NEXT_PUBLIC_BASE_URL ||
       process.env.PUBLIC_URL ||
       "https://qualitylife.se";
     const cancelUrl = `${baseUrl}/avboka?bookingId=${booking.id}`;
 
-    // Skicka parallellt men fånga fel utan att krascha svaret
     Promise.allSettled([
       sendMail({
         to: INTERNAL_RECIPIENTS,
@@ -102,10 +121,13 @@ export async function POST(req: NextRequest) {
         }),
         text: `Tack för din bokning, ${body.name}! Tid: ${datetimeLocal}. Adress: ${body.address}.`,
       }),
-    ]).then(results => {
+    ]).then((results) => {
       results.forEach((r, i) => {
         if (r.status === "rejected") {
-          console.error(i === 0 ? "INTERNAL MAIL FAILED" : "CONFIRMATION MAIL FAILED", r.reason);
+          console.error(
+            i === 0 ? "INTERNAL MAIL FAILED" : "CONFIRMATION MAIL FAILED",
+            r.reason
+          );
         }
       });
     });
@@ -119,6 +141,9 @@ export async function POST(req: NextRequest) {
       );
     }
     console.error("BOOKING ERROR", e);
-    return NextResponse.json({ ok: false, error: "Kunde inte boka" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: "Kunde inte boka" },
+      { status: 500 }
+    );
   }
 }
