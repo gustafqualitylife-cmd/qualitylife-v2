@@ -23,6 +23,17 @@ function startOfWeekLocal(d: Date) {
   monday.setHours(0,0,0,0);
   return monday;
 }
+// YYYY-MM-DD för veckans måndag (lokal tid)
+function mondayYmd(ymd: string) {
+  const a = parseYMD(ymd);
+  return ymdLocal(startOfWeekLocal(a));
+}
+// Bygg ett lokalt datum av komponenter för att undvika parser-edge cases
+function makeLocalIso(dateYmd: string, timeHm: string) {
+  const [y, m, d] = dateYmd.split("-").map(Number);
+  const [hh, mm]  = timeHm.split(":").map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1, hh ?? 0, mm ?? 0, 0, 0).toISOString();
+}
 
 export default function AdminSchema() {
   // Initiera med dagens datum i LOKALT YMD-format
@@ -41,18 +52,20 @@ export default function AdminSchema() {
   }, [weekAnchor]);
 
   async function load() {
+    const weekParam = mondayYmd(weekAnchor);
     const r = await fetch(
-      `/api/contact/open/week?resourceId=${RESOURCE_ID}&week=${weekAnchor}`,
+      `/api/contact/open/week?resourceId=${encodeURIComponent(RESOURCE_ID)}&week=${encodeURIComponent(weekParam)}`,
       { cache: "no-store" }
     );
     const data = await r.json();
-    setDays(data.days || {});
+    setDays(data?.days || {});
   }
   useEffect(() => { load(); }, [weekAnchor]);
 
   async function fetchWeekDays(anchor: string){
+    const weekParam = mondayYmd(anchor);
     const r = await fetch(
-      `/api/contact/open/week?resourceId=${RESOURCE_ID}&week=${anchor}`,
+      `/api/contact/open/week?resourceId=${encodeURIComponent(RESOURCE_ID)}&week=${encodeURIComponent(weekParam)}`,
       { cache: "no-store" }
     );
     const data = await r.json();
@@ -109,10 +122,8 @@ export default function AdminSchema() {
     setPending(p => ({ ...p, [key]: true }));
 
     try {
-  // Compute startIso from browser local time (admin is in local tz)
-  // Important: new Date("YYYY-MM-DDTHH:mm:SS") is parsed as LOCAL time in JS.
-  // Calling toISOString() converts that exact wall time to the correct UTC instant.
-  const startIso = new Date(`${date}T${time}:00`).toISOString();
+      // Bygg UTC-ögonblick från LOKAL väggtid (robust i alla browsers)
+      const startIso = makeLocalIso(date, time);
 
       const res = await fetch("/api/contact/admin/open/toggle", {
         method:"POST",
@@ -121,7 +132,7 @@ export default function AdminSchema() {
           resourceId: RESOURCE_ID,
           date,       // YYYY-MM-DD (lokal)
           time,       // "HH:mm"
-          startIso,   // exact UTC instant from browser local time
+          startIso,   // exakt UTC-ögonblick utifrån lokal tid
           desired: makeOpen ? "open" : "closed"
         })
       });

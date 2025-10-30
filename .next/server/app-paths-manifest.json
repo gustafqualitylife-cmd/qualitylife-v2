@@ -1,4 +1,21 @@
 {
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/contact/book/route": "app/api/contact/book/route.js",
   "/admin/schema/page": "app/admin/schema/page.js",
-  "/book/page": "app/book/page.js"
+  "/contact/page": "app/contact/page.js",
+  "/book/page": "app/book/page.js",
+  "/page": "app/page.js",
+  "/sitemap.xml/route": "app/sitemap.xml/route.js",
+  "/robots.txt/route": "app/robots.txt/route.js",
+  "/services/page": "app/services/page.js",
+  "/api/contact/route": "app/api/contact/route.js",
+  "/api/contact/admin/open/toggle/route": "app/api/contact/admin/open/toggle/route.js",
+  "/blog/[slug]/page": "app/blog/[slug]/page.js",
+  "/blog/page": "app/blog/page.js",
+  "/faq/page": "app/faq/page.js",
+  "/about/page": "app/about/page.js",
+  "/pricing/page": "app/pricing/page.js",
+  "/gallery/page": "app/gallery/page.js",
+  "/api/contact/open/week/route": "app/api/contact/open/week/route.js",
+  "/process/page": "app/process/page.js"
 }
