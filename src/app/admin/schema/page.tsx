@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 
 const RESOURCE_ID = "cmfmtab9i0000nc4owma6zi5i";
 const TIMES = ["10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00"];
@@ -29,6 +29,8 @@ export default function AdminSchema() {
   const [weekAnchor, setWeekAnchor] = useState(() => ymdLocal(new Date()));
   const [days, setDays] = useState<Record<string, { iso: string; label: string }[]>>({});
   const [pending, setPending] = useState<Record<string, boolean>>({}); // key: `${date}|${time}`
+  // Omedelbar klick-guard för att undvika dubbel POST när man dubbelklickar snabbt
+  const inFlightRef = useRef<Set<string>>(new Set());
 
   const weekTitle = useMemo(() => {
     const a = parseYMD(weekAnchor);
@@ -80,6 +82,10 @@ export default function AdminSchema() {
 
   async function toggle(date:string, time:string, makeOpen:boolean) {
     const key = slotKey(date, time);
+
+    // Direkt-guard: om samma knapp redan är igång, ignorera extra klick
+    if (inFlightRef.current.has(key)) return;
+    inFlightRef.current.add(key);
 
     // Optimistisk uppdatering: uppdatera UI direkt
     setDays(prev => {
@@ -142,6 +148,7 @@ export default function AdminSchema() {
       setPending(p => {
         const n = { ...p }; delete n[key]; return n;
       });
+      inFlightRef.current.delete(key);
     }
   }
 
@@ -164,10 +171,16 @@ export default function AdminSchema() {
                 const isOpen = openSet.has(t);
                 const isPending = pending[slotKey(key, t)] === true;
                 return (
-                  <button key={t}
-                          onClick={()=>!isPending && toggle(key, t, !isOpen)}
-                          disabled={isPending}
-                          className={`rounded-xl px-3 py-2 border ${isOpen ? "bg-emerald-50 border-emerald-300" : "bg-gray-50 border-gray-300"} ${isPending ? "opacity-60 cursor-not-allowed" : ""}`}>
+                  <button
+                    key={t}
+                    onClick={(e)=>{
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (!isPending) toggle(key, t, !isOpen);
+                    }}
+                    disabled={isPending}
+                    className={`rounded-xl px-3 py-2 border ${isOpen ? "bg-emerald-50 border-emerald-300" : "bg-gray-50 border-gray-300"} ${isPending ? "opacity-60 cursor-not-allowed pointer-events-none" : ""}`}
+                  >
                     {t} {isOpen ? "• öppen" : "• stängd"}{isPending ? " (sparar…)" : ""}
                   </button>
                 );
